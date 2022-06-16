@@ -1,7 +1,5 @@
 package dev.ra.spring.postgres.api;
 
-import org.postgresql.util.PGobject;
-
 import lombok.Data;
 
 @Data
@@ -13,6 +11,6 @@ public class ReleaseEvent {
 	
 	private String eventCode;
 	
-    private PGobject eventData;	
+    private String eventData;	
 	
 }

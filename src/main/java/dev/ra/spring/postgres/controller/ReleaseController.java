@@ -4,16 +4,15 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Types;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import org.postgresql.util.PGobject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
-import org.springframework.jdbc.core.namedparam.BeanPropertySqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -26,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import dev.ra.spring.postgres.api.DeployDifference;
 import dev.ra.spring.postgres.api.GenerateDifference;
 import dev.ra.spring.postgres.api.ReleaseEvent;
+import dev.ra.spring.postgres.mapper.ReleaseEventMapper;
 import dev.ra.spring.postgres.util.CommonUtil;
 
 @RestController
@@ -68,26 +68,21 @@ public class ReleaseController {
 
 	@PostMapping("/deploy/")
 	public ResponseEntity<String> saveDeploy(@RequestBody DeployDifference deployDifference) throws SQLException {
-		PGobject jsonObj = new PGobject();
-        jsonObj.setType("json");
-        jsonObj.setValue(CommonUtil.convertObjectToJsonString(deployDifference));
-		ReleaseEvent releaseEvent = new ReleaseEvent();
-		releaseEvent.setReleaseId(deployDifference.getReleaseId());
-		releaseEvent.setEventCode("DEPLOY_DIFFERENCE");
-        releaseEvent.setEventData(jsonObj);
-        
-		BeanPropertySqlParameterSource sqlParameterSource = new BeanPropertySqlParameterSource(releaseEvent);
-		sqlParameterSource.registerSqlType("release_id", Types.BIGINT);
-		sqlParameterSource.registerSqlType("event_code", Types.VARCHAR);
-		sqlParameterSource.registerSqlType( "event_data", Types.OTHER );
-		int insertCount = namedParameterJdbcTemplate.update( "INSERT INTO release_event(release_id, event_code, event_data) VALUES (:releaseId, :eventCode, :eventData)", sqlParameterSource );
-		return ResponseEntity.ok(String.format("%d row inserted", insertCount));
+		String sql = "INSERT INTO release_event(release_id, event_code, event_data) VALUES(:releaseId, :eventCode, cast(:eventData AS JSON)) RETURNING id";
+        Map<String, Object> parameters = new HashMap<String, Object>();
+        parameters.put("releaseId", deployDifference.getReleaseId());
+        parameters.put("eventCode", "DEPLOY_DIFFERENCE");
+        parameters.put("eventData", CommonUtil.convertObjectToJsonString(deployDifference));
+        Long id = namedParameterJdbcTemplate.queryForObject(sql, parameters, Long.class);
+		return ResponseEntity.ok(String.format("%d id inserted", id));
 	}
 	
 	@GetMapping("/events/{releaseId}")
 	public ResponseEntity<List<ReleaseEvent>> getEvents(@PathVariable Long releaseId){
-		String sql = "select * from release_event where release_id = ?";
-		List<ReleaseEvent> releaseEvents = jdbcTemplate.query(sql, new BeanPropertyRowMapper(ReleaseEvent.class), releaseId);
+		String sql = "select * from release_event where release_id = :releaseId";
+        final Map<String, Object> params = new HashMap<String, Object>();
+        params.put("releaseId", releaseId);
+        List<ReleaseEvent> releaseEvents = namedParameterJdbcTemplate.query(sql, params, ReleaseEventMapper.getMAPPER());
 		return ResponseEntity.ok(releaseEvents);
 	}
 
