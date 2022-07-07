@@ -4,11 +4,13 @@ import lombok.Data;
 
 @Data
 public class DeployDifference {
-	
-	private Long releaseId;
-	
-	private String fileName;
-	
-	private String ticketNumber;
+
+    private Long releaseId;
+
+    private String fileName;
+
+    private String ticketNumber;
+
+    private String releaseTime;
 
 }
