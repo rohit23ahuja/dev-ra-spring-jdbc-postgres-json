@@ -3,7 +3,7 @@ package dev.ra.spring.postgres.api;
 import lombok.Data;
 
 @Data
-public class GenerateDifference {
+public class GenerateDifference implements Event {
 
 	private Long releaseId;
 	

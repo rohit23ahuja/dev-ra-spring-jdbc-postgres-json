@@ -36,5 +36,17 @@ public class CommonUtil {
         }
         return jsonString;
     }
+    
+	/*
+	 * Method is used to convert JSON String to java class object
+	 */
+	public static <T> T convertJsonStringToObject(String jsonAsString, Class<T> valueType) {
+		try {
+			return objectMapper.readValue(jsonAsString, valueType);
+		} catch (Exception exception) {
+			LOG.error("Unable to convert JSON String to Java Object : {}", exception.getMessage(), exception);
+			throw new RuntimeException("Unable to convert JSON String to Java Object");
+		}
+	}
 
 }

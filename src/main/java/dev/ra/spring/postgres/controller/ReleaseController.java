@@ -33,64 +33,72 @@ import dev.ra.spring.postgres.util.CommonUtil;
 @RestController
 public class ReleaseController {
 
-    private final JdbcTemplate jdbcTemplate;
+	private final JdbcTemplate jdbcTemplate;
 
-    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+	private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
-    @Autowired
-    public ReleaseController(JdbcTemplate jdbcTemplate, NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
-    }
+	@Autowired
+	public ReleaseController(JdbcTemplate jdbcTemplate, NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
+		this.jdbcTemplate = jdbcTemplate;
+		this.namedParameterJdbcTemplate = namedParameterJdbcTemplate;
+	}
 
-    @PostMapping("/difference/")
-    public ResponseEntity<String> saveDifference(@RequestBody GenerateDifference generateDifference) {
-        final String createQuery = "insert into release_event(release_id, event_code, event_data) values(?, ?, to_json(?)) ";
-        final Object[] queryParams = { generateDifference.getReleaseId(), "GENERATE_DIFFERENCE", generateDifference };
-        KeyHolder holder = new GeneratedKeyHolder();
-        jdbcTemplate.update(new PreparedStatementCreator() {
-            @Override
-            public PreparedStatement createPreparedStatement(Connection connection) throws SQLException {
-                PreparedStatement ps = connection.prepareStatement(createQuery, Statement.RETURN_GENERATED_KEYS);
-                for (int i = 0; i < queryParams.length; i++) {
-                    ps.setObject(i + 1, queryParams[i]);
-                }
-                return ps;
-            }
-        }, holder);
-        long id;
-        if (holder.getKeys()
-                .size() > 1) {
-            id = (Long) holder.getKeys()
-                    .get("id");
-        } else {
-            id = holder.getKey()
-                    .longValue();
-        }
+	@PostMapping("/difference/")
+	public ResponseEntity<String> saveDifference(@RequestBody GenerateDifference generateDifference) {
+		final String createQuery = "insert into release_event(release_id, event_code, event_data, created_on) values(?, ?, to_json(?), ?) ";
+		final Object[] queryParams = { generateDifference.getReleaseId(), "GENERATE_DIFFERENCE",
+				CommonUtil.convertObjectToJsonString(generateDifference), Timestamp.valueOf(LocalDateTime.now()) };
+		KeyHolder holder = new GeneratedKeyHolder();
+		jdbcTemplate.update(new PreparedStatementCreator() {
+			@Override
+			public PreparedStatement createPreparedStatement(Connection connection) throws SQLException {
+				PreparedStatement ps = connection.prepareStatement(createQuery, Statement.RETURN_GENERATED_KEYS);
+				for (int i = 0; i < queryParams.length; i++) {
+					ps.setObject(i + 1, queryParams[i]);
+				}
+				return ps;
+			}
+		}, holder);
+		long id;
+		if (holder.getKeys().size() > 1) {
+			id = (Long) holder.getKeys().get("id");
+		} else {
+			id = holder.getKey().longValue();
+		}
 
-        return ResponseEntity.ok(String.format("%d id inserted", id));
-    }
+		return ResponseEntity.ok(String.format("%d id inserted", id));
+	}
 
-    @PostMapping("/deploy/")
-    public ResponseEntity<String> saveDeploy(@RequestBody DeployDifference deployDifference) throws SQLException {
-        String sql = "INSERT INTO release_event(release_id, event_code, event_data, created_on, execution_time) VALUES(:releaseId, :eventCode, cast(:eventData AS JSON), :createdOn, :executionTime) RETURNING id";
-        Map<String, Object> parameters = new HashMap<String, Object>();
-        parameters.put("releaseId", deployDifference.getReleaseId());
-        parameters.put("eventCode", "DEPLOY_DIFFERENCE");
-        parameters.put("eventData", CommonUtil.convertObjectToJsonString(deployDifference));
-        parameters.put("createdOn", Timestamp.valueOf(LocalDateTime.now()));
-        parameters.put("executionTime", Timestamp.from(Instant.parse(deployDifference.getReleaseTime())));
-        Long id = namedParameterJdbcTemplate.queryForObject(sql, parameters, Long.class);
-        return ResponseEntity.ok(String.format("%d id inserted", id));
-    }
+	@PostMapping("/deploy/")
+	public ResponseEntity<String> saveDeploy(@RequestBody DeployDifference deployDifference) throws SQLException {
+		String sql = "INSERT INTO release_event(release_id, event_code, event_data, created_on, execution_time) VALUES(:releaseId, :eventCode, cast(:eventData AS JSON), :createdOn, :executionTime) RETURNING id";
+		Map<String, Object> parameters = new HashMap<String, Object>();
+		parameters.put("releaseId", deployDifference.getReleaseId());
+		parameters.put("eventCode", "DEPLOY_DIFFERENCE");
+		parameters.put("eventData", CommonUtil.convertObjectToJsonString(deployDifference));
+		parameters.put("createdOn", Timestamp.valueOf(LocalDateTime.now()));
+		parameters.put("executionTime", Timestamp.from(Instant.parse(deployDifference.getReleaseTime())));
+		Long id = namedParameterJdbcTemplate.queryForObject(sql, parameters, Long.class);
+		return ResponseEntity.ok(String.format("%d id inserted", id));
+	}
 
-    @GetMapping("/events/{releaseId}")
-    public ResponseEntity<List<ReleaseEvent>> getEvents(@PathVariable Long releaseId) {
-        String sql = "select * from release_event where release_id = :releaseId";
-        final Map<String, Object> params = new HashMap<String, Object>();
-        params.put("releaseId", releaseId);
-        List<ReleaseEvent> releaseEvents = namedParameterJdbcTemplate.query(sql, params, ReleaseEventMapper.getMAPPER());
-        return ResponseEntity.ok(releaseEvents);
-    }
+	@GetMapping("/events/{releaseId}")
+	public ResponseEntity<List<ReleaseEvent>> getEvents(@PathVariable Long releaseId) {
+		String sql = "select * from release_event where release_id = :releaseId";
+		final Map<String, Object> params = new HashMap<String, Object>();
+		params.put("releaseId", releaseId);
+		List<ReleaseEvent> releaseEvents = namedParameterJdbcTemplate.query(sql, params,
+				ReleaseEventMapper.getMAPPER());
+		return ResponseEntity.ok(releaseEvents);
+	}
 
+	@GetMapping("/events/{releaseId}/event-code/{eventCode}")
+	public ResponseEntity<GenerateDifference> getEvent(@PathVariable Long releaseId, @PathVariable String eventCode){
+		String sql = "select * from release_event where release_id = :releaseId and event_code = :eventCode";
+		final Map<String, Object> params = new HashMap<String, Object>();
+		params.put("releaseId", releaseId);
+		params.put("eventCode", eventCode);
+		List<ReleaseEvent> releaseEvents = namedParameterJdbcTemplate.query(sql, params,
+				ReleaseEventMapper.getMAPPER());
+	}
 }
