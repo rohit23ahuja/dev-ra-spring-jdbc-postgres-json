@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -25,11 +26,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.ra.spring.postgres.api.DeployDifference;
+import dev.ra.spring.postgres.api.Event;
 import dev.ra.spring.postgres.api.GenerateDifference;
 import dev.ra.spring.postgres.api.ReleaseEvent;
 import dev.ra.spring.postgres.mapper.ReleaseEventMapper;
 import dev.ra.spring.postgres.util.CommonUtil;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 public class ReleaseController {
 
@@ -45,7 +49,7 @@ public class ReleaseController {
 
 	@PostMapping("/difference/")
 	public ResponseEntity<String> saveDifference(@RequestBody GenerateDifference generateDifference) {
-		final String createQuery = "insert into release_event(release_id, event_code, event_data, created_on) values(?, ?, to_json(?), ?) ";
+		final String createQuery = "insert into release_event(release_id, event_code, event_data, created_on) values(?, ?, cast(? AS JSON), ?) ";
 		final Object[] queryParams = { generateDifference.getReleaseId(), "GENERATE_DIFFERENCE",
 				CommonUtil.convertObjectToJsonString(generateDifference), Timestamp.valueOf(LocalDateTime.now()) };
 		KeyHolder holder = new GeneratedKeyHolder();
@@ -92,13 +96,26 @@ public class ReleaseController {
 		return ResponseEntity.ok(releaseEvents);
 	}
 
-	@GetMapping("/events/{releaseId}/event-code/{eventCode}")
-	public ResponseEntity<GenerateDifference> getEvent(@PathVariable Long releaseId, @PathVariable String eventCode){
+	@GetMapping("/events/{releaseId}/code/{eventCode}")
+	public ResponseEntity<Event> getEvent(@PathVariable Long releaseId, @PathVariable String eventCode) {
 		String sql = "select * from release_event where release_id = :releaseId and event_code = :eventCode";
 		final Map<String, Object> params = new HashMap<String, Object>();
 		params.put("releaseId", releaseId);
 		params.put("eventCode", eventCode);
 		List<ReleaseEvent> releaseEvents = namedParameterJdbcTemplate.query(sql, params,
 				ReleaseEventMapper.getMAPPER());
+		ReleaseEvent releaseEvent = releaseEvents.get(0);
+		if (StringUtils.equals("GENERATE_DIFFERENCE", eventCode)) {
+			GenerateDifference generateDifference = CommonUtil.convertJsonStringToObject(releaseEvent.getEventData(),
+					GenerateDifference.class);
+			return ResponseEntity.ok(generateDifference);
+		} else if (StringUtils.equals("DEPLOY_DIFFERENCE", eventCode)) {
+			DeployDifference deployDifference = CommonUtil.convertJsonStringToObject(releaseEvent.getEventData(),
+					DeployDifference.class);
+			return ResponseEntity.ok(deployDifference);
+		} else {
+			log.error("Unsupported event code -[{}]", eventCode);
+			return null;
+		}
 	}
 }

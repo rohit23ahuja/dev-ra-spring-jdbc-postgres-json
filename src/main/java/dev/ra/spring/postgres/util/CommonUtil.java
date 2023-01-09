@@ -1,22 +1,18 @@
 package dev.ra.spring.postgres.util;
 
-import java.lang.invoke.MethodHandles;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 public class CommonUtil {
     private static ObjectMapper objectMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .registerModule(new Jdk8Module())
             .registerModule(new JavaTimeModule());
-    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup()
-            .lookupClass());
 
     private CommonUtil() {
     }
@@ -32,7 +28,7 @@ public class CommonUtil {
             }
         } catch (JsonProcessingException exception) {
             jsonString = requestObject.toString();
-            LOG.error("Error occurred while converting request object : {} to json string", requestObject.toString());
+            log.error("Error occurred while converting request object : {} to json string", requestObject.toString());
         }
         return jsonString;
     }
@@ -42,9 +38,10 @@ public class CommonUtil {
 	 */
 	public static <T> T convertJsonStringToObject(String jsonAsString, Class<T> valueType) {
 		try {
-			return objectMapper.readValue(jsonAsString, valueType);
+			String unwrappedJSON = objectMapper.readValue(jsonAsString, String.class);
+			return objectMapper.readValue(unwrappedJSON, valueType);
 		} catch (Exception exception) {
-			LOG.error("Unable to convert JSON String to Java Object : {}", exception.getMessage(), exception);
+			log.error("Unable to convert JSON String to Java Object : {}", exception.getMessage(), exception);
 			throw new RuntimeException("Unable to convert JSON String to Java Object");
 		}
 	}
