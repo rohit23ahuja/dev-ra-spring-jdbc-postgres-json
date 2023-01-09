@@ -38,8 +38,7 @@ public class CommonUtil {
 	 */
 	public static <T> T convertJsonStringToObject(String jsonAsString, Class<T> valueType) {
 		try {
-			String unwrappedJSON = objectMapper.readValue(jsonAsString, String.class);
-			return objectMapper.readValue(unwrappedJSON, valueType);
+			return objectMapper.readValue(jsonAsString, valueType);
 		} catch (Exception exception) {
 			log.error("Unable to convert JSON String to Java Object : {}", exception.getMessage(), exception);
 			throw new RuntimeException("Unable to convert JSON String to Java Object");
